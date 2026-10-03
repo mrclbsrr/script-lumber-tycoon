@@ -1,5 +1,9 @@
-getgenv().webhook = "webhook here"
+getgenv().webhook = getgenv().webhook or "webhook here"
 if getgenv().stayOnFind == nil then getgenv().stayOnFind = true end
+if getgenv().autoHop == nil then getgenv().autoHop = true end       -- trocar de server se nao achar nada
+if getgenv().autoSlot == nil then getgenv().autoSlot = true end     -- carregar slot sozinho se nao tiver plot
+if getgenv().slot == nil then getgenv().slot = 1 end                -- numero do slot
+if getgenv().trackPlanted == nil then getgenv().trackPlanted = false end -- true = tambem marcar arvores plantadas
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
@@ -22,6 +26,23 @@ end)
 if not File then
     table.insert(AllIDs, actualHour)
     writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs))
+end
+
+local SCRIPT_URL = "https://raw.githubusercontent.com/mrclbsrr/script-lumber-tycoon/refs/heads/main/spooky_esp.lua"
+local queued = false
+
+-- reexecuta o script automaticamente no proximo servidor
+local function queueReload()
+    local q = queue_on_teleport or queueonteleport or (syn and syn.queue_on_teleport)
+    if not q then return end
+    local g = getgenv()
+    local pre = string.format(
+        "getgenv().webhook=%q getgenv().autoHop=%s getgenv().autoSlot=%s getgenv().slot=%d "
+        .. "getgenv().stayOnFind=%s getgenv().trackPlanted=%s getgenv().autoChopStart=%s ",
+        tostring(g.webhook), tostring(g.autoHop), tostring(g.autoSlot),
+        math.floor(tonumber(g.slot) or 1), tostring(g.stayOnFind),
+        tostring(g.trackPlanted), tostring(g.autoChopOn == true))
+    pcall(q, pre .. 'loadstring(game:HttpGet("' .. SCRIPT_URL .. '"))()')
 end
 
 local function TPReturner()
@@ -56,6 +77,7 @@ local function TPReturner()
                 pcall(function()
                     writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs))
                     task.wait()
+                    if not queued then queued = true queueReload() end
                     TeleportService:TeleportToPlaceInstance(PlaceID, ID, LocalPlayer)
                 end)
                 task.wait(4)
@@ -71,6 +93,15 @@ local function Teleport()
             if foundAnything ~= "" then TPReturner() end
         end)
     end
+end
+
+local hopping = false
+local hopCallback = nil  -- a GUI define isso para mudar o texto do botao
+local function startHop()
+    if hopping then return end
+    hopping = true
+    if hopCallback then hopCallback() end
+    task.spawn(Teleport)
 end
 
 ----------------------------------------------------------------
@@ -192,8 +223,8 @@ gui.ResetOnSpawn = false
 gui.Parent = espFolder.Parent
 
 local main = Instance.new("Frame")
-main.Size = UDim2.fromOffset(270, 320)
-main.Position = UDim2.new(0, 20, 0.5, -160)
+main.Size = UDim2.fromOffset(270, 340)
+main.Position = UDim2.new(0, 20, 0.5, -170)
 main.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 main.BorderSizePixel = 0
 main.Parent = gui
@@ -219,8 +250,8 @@ toggle.Text = "-"
 toggle.Parent = main
 
 local list = Instance.new("ScrollingFrame")
-list.Position = UDim2.fromOffset(0, 94)
-list.Size = UDim2.new(1, 0, 1, -94)
+list.Position = UDim2.fromOffset(0, 126)
+list.Size = UDim2.new(1, 0, 1, -126)
 list.BackgroundTransparency = 1
 list.BorderSizePixel = 0
 list.ScrollBarThickness = 4
@@ -228,7 +259,7 @@ list.CanvasSize = UDim2.new()
 list.AutomaticCanvasSize = Enum.AutomaticSize.Y
 list.Parent = main
 
-local autoChop = false
+local autoChop = getgenv().autoChopStart == true
 local autoBtn = Instance.new("TextButton")
 autoBtn.Size = UDim2.new(1, -12, 0, 26)
 autoBtn.Position = UDim2.fromOffset(6, 32)
@@ -240,7 +271,8 @@ autoBtn.Parent = main
 Instance.new("UICorner", autoBtn).CornerRadius = UDim.new(0, 6)
 
 local function refreshAutoBtn()
-    autoBtn.Text = autoChop and "Auto Chop -> Plot: ON" or "Auto Chop -> Plot: OFF"
+    getgenv().autoChopOn = autoChop
+    autoBtn.Text = autoChop and "Auto Coletar -> Plot: ON" or "Auto Coletar -> Plot: OFF"
     autoBtn.BackgroundColor3 = autoChop and Color3.fromRGB(40, 150, 70) or Color3.fromRGB(150, 40, 40)
 end
 local function setStatus(text) autoBtn.Text = text end
@@ -356,6 +388,62 @@ task.spawn(function()
     while task.wait(2) do refreshAxeUI(false) end
 end)
 
+-- linha 3: [Server Hop] [Auto Slot] [# do slot]
+local function styleBtn(b)
+    b.BorderSizePixel = 0
+    b.Font = Enum.Font.GothamBold
+    b.TextSize = 11
+    b.TextColor3 = Color3.new(1, 1, 1)
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+end
+
+local hopBtn = Instance.new("TextButton")
+hopBtn.Size = UDim2.fromOffset(96, 26)
+hopBtn.Position = UDim2.fromOffset(6, 92)
+hopBtn.BackgroundColor3 = Color3.fromRGB(60, 90, 160)
+hopBtn.Text = "Server Hop"
+styleBtn(hopBtn)
+hopBtn.Parent = main
+hopBtn.MouseButton1Click:Connect(function() startHop() end)
+hopCallback = function()
+    hopBtn.Text = "Hopping..."
+    hopBtn.BackgroundColor3 = Color3.fromRGB(90, 90, 100)
+end
+if hopping then hopCallback() end
+
+local autoSlotBtn = Instance.new("TextButton")
+autoSlotBtn.Size = UDim2.fromOffset(100, 26)
+autoSlotBtn.Position = UDim2.fromOffset(106, 92)
+styleBtn(autoSlotBtn)
+autoSlotBtn.Parent = main
+local function refreshSlotBtn()
+    local on = getgenv().autoSlot
+    autoSlotBtn.Text = on and "Auto Slot: ON" or "Auto Slot: OFF"
+    autoSlotBtn.BackgroundColor3 = on and Color3.fromRGB(40, 150, 70) or Color3.fromRGB(150, 40, 40)
+end
+refreshSlotBtn()
+autoSlotBtn.MouseButton1Click:Connect(function()
+    getgenv().autoSlot = not getgenv().autoSlot
+    refreshSlotBtn()
+end)
+
+local slotBox = Instance.new("TextBox")
+slotBox.Size = UDim2.fromOffset(54, 26)
+slotBox.Position = UDim2.fromOffset(210, 92)
+slotBox.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+slotBox.PlaceholderText = "slot"
+slotBox.ClearTextOnFocus = false
+slotBox.Text = tostring(getgenv().slot)
+styleBtn(slotBox)
+slotBox.Parent = main
+slotBox.FocusLost:Connect(function()
+    local n = tonumber(slotBox.Text)
+    if n and n >= 1 then
+        getgenv().slot = math.floor(n)
+    end
+    slotBox.Text = tostring(getgenv().slot)
+end)
+
 local layout = Instance.new("UIListLayout", list)
 layout.Padding = UDim.new(0, 4)
 local pad = Instance.new("UIPadding", list)
@@ -369,8 +457,11 @@ toggle.MouseButton1Click:Connect(function()
     autoBtn.Visible = not collapsed
     axeSelect.Visible = not collapsed
     dmgBox.Visible = not collapsed
+    hopBtn.Visible = not collapsed
+    autoSlotBtn.Visible = not collapsed
+    slotBox.Visible = not collapsed
     if collapsed then dropdown.Visible = false end
-    main.Size = collapsed and UDim2.fromOffset(270, 30) or UDim2.fromOffset(270, 320)
+    main.Size = collapsed and UDim2.fromOffset(270, 30) or UDim2.fromOffset(270, 340)
     toggle.Text = collapsed and "+" or "-"
 end)
 
@@ -419,7 +510,8 @@ local function addButton(tree, info, part)
     btn.BackgroundTransparency = 0.25
     btn.BorderSizePixel = 0
     btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 12
+    btn.TextSize = 11
+    btn.TextTruncate = Enum.TextTruncate.AtEnd
     btn.TextColor3 = Color3.new(1, 1, 1)
     btn.TextStrokeTransparency = 0.5
     btn.Text = info.label
@@ -506,10 +598,12 @@ task.spawn(function()
         for tree, t in pairs(tracked) do
             if t.part and t.part.Parent then
                 local dist = hrp and math.floor((hrp.Position - t.part.Position).Magnitude) or 0
-                t.label.Text = string.format("%s\nTam: %s | %dm", t.name, woodSize(t.part), dist)
+                local ov = tree:FindFirstChild("Owner")
+                local tag = (ov and ov.Value) and ("de " .. tostring(ov.Value)) or "livre"
+                t.label.Text = string.format("%s [%s]\nTam: %s | %dm", t.name, tag, woodSize(t.part), dist)
                 local b = treeButtons[tree]
                 if b then
-                    b.Text = string.format("%s | Tam: %s | %dm", t.name, woodSize(t.part), dist)
+                    b.Text = string.format("%s [%s] | %s | %dm", t.name, tag, woodSize(t.part), dist)
                 end
             end
         end
@@ -522,6 +616,11 @@ local function handleTreeClass(v)
     if not info then return end
     local tree = v.Parent
     if not tree or tracked[tree] then return end
+    -- por padrao so marca madeira JA DROPADA (workspace.LogModels);
+    -- arvores plantadas so entram com getgenv().trackPlanted = true
+    local lf = workspace:FindFirstChild("LogModels")
+    local dropped = lf ~= nil and tree.Parent == lf
+    if not dropped and not getgenv().trackPlanted then return end
 
     task.spawn(function()
         local part = tree:WaitForChild("WoodSection", 5)
@@ -559,6 +658,40 @@ local function getPlot()
         local o = p:FindFirstChild("Owner")
         if o and o.Value == LocalPlayer then return p end
     end
+end
+
+-- madeira "livre" = sem dono (Owner vazio). Madeira de jogadores presentes nao e coletada.
+local function isFree(tree)
+    local o = tree:FindFirstChild("Owner")
+    return o ~= nil and o.Value == nil
+end
+
+-- carrega o slot escolhido (nomes de remotes do LT2; podem mudar com updates)
+local function loadSlot()
+    if getPlot() then return true end
+    local LS = RS:FindFirstChild("LoadSaveRequests")
+    if not LS then return false end
+    local slot = math.floor(tonumber(getgenv().slot) or 1)
+    pcall(function() LS.ClientMayLoad:InvokeServer(LocalPlayer) end)
+    local ok = pcall(function() LS.RequestLoad:InvokeServer(slot, LocalPlayer) end)
+    if not ok then
+        pcall(function() LS.RequestLoad:FireServer(slot, LocalPlayer) end)
+    end
+    local t0 = tick()
+    while tick() - t0 < 30 do
+        if getPlot() then return true end
+        task.wait(1)
+    end
+    return false
+end
+
+local function ensurePlot()
+    local plot = getPlot()
+    if plot then return plot end
+    if not getgenv().autoSlot then return nil end
+    setStatus("Carregando slot " .. tostring(getgenv().slot) .. "...")
+    if loadSlot() then return getPlot() end
+    return nil
 end
 
 -- getAxe / getAxeDamage (machado escolhido na lista) ficam definidos mais acima
@@ -606,11 +739,23 @@ local function deliverLog(log, plotPos)
 end
 
 local function processTree(tree)
-    local plot = getPlot()
-    if not plot then setStatus("Sem plot! (compre/pegue um)") task.wait(3) return end
+    local plot = ensurePlot()
+    if not plot then setStatus("Sem plot! (falha ao carregar slot)") task.wait(3) return end
     local origin = plot:FindFirstChild("OriginSquare")
     if not origin then return end
     local plotPos = origin.Position
+
+    -- madeira JA DROPADA: so pegar e levar pro plot (nao precisa de machado)
+    local lf = workspace:FindFirstChild("LogModels")
+    if lf and tree.Parent == lf then
+        if not isFree(tree) then return end
+        setStatus("Pegando " .. (tracked[tree] and tracked[tree].name or "tora") .. "...")
+        deliverLog(tree, plotPos)
+        local hrp3 = getHRP()
+        if hrp3 then hrp3.CFrame = CFrame.new(plotPos + Vector3.new(0, 6, 12)) end
+        found[tree] = nil
+        return
+    end
 
     local axe = getAxe()
     if not axe then setStatus("Sem machado!") task.wait(3) return end
@@ -661,28 +806,37 @@ local function processTree(tree)
     found[tree] = nil
 end
 
+local scanDone = false
+
 task.spawn(function()
     local busy = false
     while task.wait(1) do
-        if autoChop and not busy then
+        if autoChop and scanDone and not busy then
+            local didWork = false
             for tree, data in pairs(found) do
                 if not autoChop then break end
-                if tree.Parent and data.unowned then
+                if not tree.Parent then
+                    found[tree] = nil
+                elseif isFree(tree) then
+                    didWork = true
+                    data.tries = (data.tries or 0) + 1
                     busy = true
                     local ok, err = pcall(processTree, tree)
-                    if not ok then warn("[AutoChop] " .. tostring(err)) end
+                    if not ok then warn("[AutoColetar] " .. tostring(err)) end
                     busy = false
                     refreshAutoBtn()
-                else
-                    found[tree] = nil
+                    if data.tries >= 3 then found[tree] = nil end
                 end
             end
+            -- nada livre para coletar: troca de servidor (se autoHop estiver ligado)
+            if not didWork and getgenv().autoHop then startHop() end
         end
     end
 end)
 
 -- tempo para o ESP/scan terminar antes de decidir
 task.wait(5)
+scanDone = true
 
 ----------------------------------------------------------------
 -- Decisao: avisar no webhook e ficar / trocar de servidor
@@ -701,6 +855,6 @@ for _, data in pairs(found) do
     end
 end
 
-if not any or not getgenv().stayOnFind then
-    Teleport()
+if (not any or not getgenv().stayOnFind) and getgenv().autoHop then
+    startHop()
 end
