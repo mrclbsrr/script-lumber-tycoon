@@ -1,9 +1,9 @@
 getgenv().webhook = getgenv().webhook or "webhook here"
 if getgenv().stayOnFind == nil then getgenv().stayOnFind = true end
-if getgenv().autoHop == nil then getgenv().autoHop = true end        -- trocar de server se nao achar nada
-if getgenv().autoSlot == nil then getgenv().autoSlot = true end      -- carregar slot sozinho se nao tiver plot
-if getgenv().slot == nil then getgenv().slot = 1 end                 -- numero do slot
-if getgenv().trackPlanted == nil then getgenv().trackPlanted = false end -- true = tambem marcar arvores plantadas
+if getgenv().autoHop == nil then getgenv().autoHop = true end        
+if getgenv().autoSlot == nil then getgenv().autoSlot = true end      
+if getgenv().slot == nil then getgenv().slot = 1 end                 
+if getgenv().trackPlanted == nil then getgenv().trackPlanted = false end 
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
@@ -13,7 +13,7 @@ local LocalPlayer = Players.LocalPlayer
 repeat task.wait() until game:IsLoaded()
 
 ----------------------------------------------------------------
--- Server hop
+-- Server hop (Com proteção para executores Mobile/Delta)
 ----------------------------------------------------------------
 local PlaceID = game.PlaceId
 local AllIDs = {}
@@ -21,11 +21,17 @@ local foundAnything = ""
 local actualHour = os.date("!*t").hour
 
 local File = pcall(function()
-    AllIDs = HttpService:JSONDecode(readfile("NotSameServers.json"))
+    if readfile then
+        AllIDs = HttpService:JSONDecode(readfile("NotSameServers.json"))
+    else
+        error("Sem suporte a readfile")
+    end
 end)
 if not File then
     table.insert(AllIDs, actualHour)
-    pcall(function() writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end)
+    pcall(function() 
+        if writefile then writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end
+    end)
 end
 
 local SCRIPT_URL = "https://raw.githubusercontent.com/mrclbsrr/script-lumber-tycoon/refs/heads/main/spooky_esp.lua"
@@ -62,7 +68,7 @@ local function TPReturner()
                 else
                     if tonumber(actualHour) ~= tonumber(Existing) then
                         pcall(function()
-                            delfile("NotSameServers.json")
+                            if delfile then delfile("NotSameServers.json") end
                             AllIDs = {}
                             table.insert(AllIDs, actualHour)
                         end)
@@ -74,7 +80,7 @@ local function TPReturner()
                 table.insert(AllIDs, ID)
                 task.wait()
                 pcall(function()
-                    writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs))
+                    if writefile then writefile("NotSameServers.json", HttpService:JSONEncode(AllIDs)) end
                     task.wait()
                     if not queued then queued = true queueReload() end
                     TeleportService:TeleportToPlaceInstance(PlaceID, ID, LocalPlayer)
