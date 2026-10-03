@@ -1,12 +1,14 @@
 local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local RS = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
--- Espera o jogo carregar completamente
 if not game:IsLoaded() then game.Loaded:Wait() end
 
--- Sistema de GUI Super Seguro (Tenta CoreGui, se falhar vai pro PlayerGui)
+-- Configurações globais
+if getgenv().slot == nil then getgenv().slot = 1 end
+
 local guiParent
 pcall(function() 
     local core = game:GetService("CoreGui")
@@ -16,7 +18,6 @@ if not guiParent then
     guiParent = LocalPlayer:WaitForChild("PlayerGui")
 end
 
--- Limpa versões anteriores
 for _, v in pairs(guiParent:GetChildren()) do
     if v.Name == "TreeTP_Mobile" or v.Name == "TreeESP" then
         v:Destroy()
@@ -33,8 +34,8 @@ gui.ResetOnSpawn = false
 gui.Parent = guiParent
 
 local main = Instance.new("Frame")
-main.Size = UDim2.fromOffset(250, 200)
-main.Position = UDim2.new(0, 20, 0.5, -100)
+main.Size = UDim2.fromOffset(260, 380)
+main.Position = UDim2.new(0, 20, 0.5, -190)
 main.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 main.BorderSizePixel = 0
 main.Active = true
@@ -43,21 +44,47 @@ main.Parent = gui
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 8)
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 30)
+title.Size = UDim2.new(1, -30, 0, 30)
 title.BackgroundTransparency = 1
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
 title.TextColor3 = Color3.new(1, 1, 1)
-title.Text = "Lumber Farm (Seguro)"
+title.Text = "Lumber Farm (Mobile Pro)"
 title.Parent = main
 
+local toggle = Instance.new("TextButton")
+toggle.Size = UDim2.fromOffset(30, 30)
+toggle.Position = UDim2.new(1, -30, 0, 0)
+toggle.BackgroundTransparency = 1
+toggle.Font = Enum.Font.GothamBold
+toggle.TextSize = 18
+toggle.TextColor3 = Color3.new(1, 1, 1)
+toggle.Text = "-"
+toggle.Parent = main
+
+-- Status
+local statusLbl = Instance.new("TextLabel")
+statusLbl.Size = UDim2.new(1, -20, 0, 20)
+statusLbl.Position = UDim2.new(0, 10, 0, 35)
+statusLbl.BackgroundTransparency = 1
+statusLbl.Font = Enum.Font.Gotham
+statusLbl.TextSize = 11
+statusLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+statusLbl.Text = "Status: Pronto"
+statusLbl.Parent = main
+
+local function setStatus(txt)
+    if statusLbl then statusLbl.Text = "Status: " .. txt end
+end
+
+-- Botão Auto Coletar
 local autoChop = false
 local autoBtn = Instance.new("TextButton")
-autoBtn.Size = UDim2.new(1, -20, 0, 35)
-autoBtn.Position = UDim2.new(0, 10, 0, 40)
+autoBtn.Size = UDim2.new(1, -20, 0, 28)
+autoBtn.Position = UDim2.new(0, 10, 0, 60)
 autoBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
 autoBtn.Font = Enum.Font.GothamBold
-autoBtn.TextSize = 14
+autoBtn.TextSize = 12
 autoBtn.TextColor3 = Color3.new(1, 1, 1)
 autoBtn.Text = "Auto Coletar: OFF"
 autoBtn.Parent = main
@@ -69,23 +96,79 @@ autoBtn.MouseButton1Click:Connect(function()
     autoBtn.BackgroundColor3 = autoChop and Color3.fromRGB(40, 150, 70) or Color3.fromRGB(150, 40, 40)
 end)
 
-local statusLbl = Instance.new("TextLabel")
-statusLbl.Size = UDim2.new(1, -20, 0, 20)
-statusLbl.Position = UDim2.new(0, 10, 0, 85)
-statusLbl.BackgroundTransparency = 1
-statusLbl.Font = Enum.Font.Gotham
-statusLbl.TextSize = 12
-statusLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
-statusLbl.Text = "Status: Aguardando..."
-statusLbl.Parent = main
+-- Botão Resgatar Machados Caídos
+local rescueBtn = Instance.new("TextButton")
+rescueBtn.Size = UDim2.new(1, -20, 0, 28)
+rescueBtn.Position = UDim2.new(0, 10, 0, 92)
+rescueBtn.BackgroundColor3 = Color3.fromRGB(60, 90, 160)
+rescueBtn.BorderSizePixel = 0
+rescueBtn.Font = Enum.Font.GothamBold
+rescueBtn.TextSize = 11
+rescueBtn.TextColor3 = Color3.new(1, 1, 1)
+rescueBtn.Text = "Resgatar Machados do Chão"
+rescueBtn.Parent = main
+Instance.new("UICorner", rescueBtn).CornerRadius = UDim.new(0, 6)
 
-local function setStatus(txt)
-    if statusLbl then statusLbl.Text = "Status: " .. txt end
-end
+rescueBtn.MouseButton1Click:Connect(function()
+    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local count = 0
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if obj:IsA("Tool") or (obj:IsA("Model") and (obj.Name:lower():find("axe") or obj:FindFirstChild("ToolName"))) then
+            pcall(function()
+                obj:PivotTo(hrp.CFrame + Vector3.new(math.random(-3, 3), 2, math.random(-3, 3)))
+                count = count + 1
+            end)
+        end
+    end
+    setStatus("Machados resgatados: " .. count)
+end)
 
-----------------------------------------------------------------
--- Lógica do Jogo (Machados e Árvores)
-----------------------------------------------------------------
+-- Botão Server Hop
+local hopBtn = Instance.new("TextButton")
+hopBtn.Size = UDim2.new(1, -20, 0, 28)
+hopBtn.Position = UDim2.new(0, 10, 0, 124)
+hopBtn.BackgroundColor3 = Color3.fromRGB(90, 60, 160)
+hopBtn.BorderSizePixel = 0
+hopBtn.Font = Enum.Font.GothamBold
+hopBtn.TextSize = 11
+hopBtn.TextColor3 = Color3.new(1, 1, 1)
+hopBtn.Text = "Server Hop"
+hopBtn.Parent = main
+Instance.new("UICorner", hopBtn).CornerRadius = UDim.new(0, 6)
+
+hopBtn.MouseButton1Click:Connect(function()
+    setStatus("Trocando de servidor...")
+    pcall(function()
+        local response = game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
+        if response then
+            local data = HttpService:JSONDecode(response)
+            if data and data.data then
+                for _, s in ipairs(data.data) do
+                    if s.playing < s.maxPlayers and tostring(s.id) ~= tostring(game.JobId) then
+                        TeleportService:TeleportToPlaceInstance(game.PlaceId, tostring(s.id), LocalPlayer)
+                        return
+                    end
+                end
+            end
+        end
+    end)
+end)
+
+-- Lista de Árvores com TP Separado
+local list = Instance.new("ScrollingFrame")
+list.Position = UDim2.fromOffset(10, 160)
+list.Size = UDim2.new(1, -20, 1, -170)
+list.BackgroundTransparency = 1
+list.BorderSizePixel = 0
+list.ScrollBarThickness = 4
+list.CanvasSize = UDim2.new()
+list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+list.Parent = main
+local layout = Instance.new("UIListLayout", list)
+layout.Padding = UDim.new(0, 5)
+
+-- Funções utilitárias do jogo
 local function getAxe()
     local function findIn(container)
         for _, t in ipairs(container:GetChildren()) do
@@ -111,6 +194,17 @@ local function getPlot()
     end
 end
 
+local function loadSlot()
+    if getPlot() then return true end
+    local LS = RS:FindFirstChild("LoadSaveRequests")
+    if not LS then return false end
+    pcall(function() LS.ClientMayLoad:InvokeServer(LocalPlayer) end)
+    task.wait(0.5)
+    pcall(function() LS.RequestLoad:InvokeServer(getgenv().slot or 1, LocalPlayer) end)
+    task.wait(2)
+    return getPlot() ~= nil
+end
+
 local function isFree(tree)
     local o = tree:FindFirstChild("Owner")
     return (not o) or o.Value == nil or o.Value == LocalPlayer
@@ -118,42 +212,41 @@ end
 
 local foundTrees = {}
 
-local function addESP(tree, part, labelText, color)
-    if not part then return end
-    local hl = Instance.new("Highlight")
-    hl.Adornee = tree
-    hl.FillColor = color
-    hl.FillTransparency = 0.5
-    hl.Parent = espFolder
+local function addButton(tree, labelText, part, color)
+    if tree.FindFirstChild(tree, "UIBtn") then return end
+    
+    local btn = Instance.new("TextButton")
+    btn.Name = "UIBtn"
+    btn.Size = UDim2.new(1, 0, 0, 30)
+    btn.BackgroundColor3 = color
+    btn.BackgroundTransparency = 0.3
+    btn.BorderSizePixel = 0
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 11
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Text = "TP: " .. labelText
+    btn.Parent = list
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
-    local bb = Instance.new("BillboardGui")
-    bb.Adornee = part
-    bb.AlwaysOnTop = true
-    bb.Size = UDim2.fromOffset(100, 30)
-    bb.StudsOffset = Vector3.new(0, 5, 0)
-    bb.Parent = espFolder
+    btn.MouseButton1Click:Connect(function()
+        local hrp = getHRP()
+        if hrp and part and part.Parent then
+            hrp.CFrame = part.CFrame + Vector3.new(0, 5, 0)
+            setStatus("Teleportado para " .. labelText)
+        end
+    end)
 
-    local txt = Instance.new("TextLabel")
-    txt.Size = UDim2.fromScale(1, 1)
-    txt.BackgroundTransparency = 1
-    txt.TextColor3 = color
-    txt.Font = Enum.Font.GothamBold
-    txt.TextSize = 12
-    txt.Text = labelText
-    txt.Parent = bb
-
-    foundTrees[tree] = {part = part}
+    foundTrees[tree] = {part = part, button = btn, name = labelText}
     
     tree.AncestryChanged:Connect(function(_, parent)
         if not parent then
-            hl:Destroy()
-            bb:Destroy()
+            btn:Destroy()
             foundTrees[tree] = nil
         end
     end)
 end
 
--- Escaneia madeiras raras
+-- Escaneia árvores especiais (Spooky e SpookyNeon)
 for _, v in ipairs(workspace:GetDescendants()) do
     if v:IsA("StringValue") and v.Name == "TreeClass" then
         if v.Value == "Spooky" or v.Value == "SpookyNeon" then
@@ -161,63 +254,85 @@ for _, v in ipairs(workspace:GetDescendants()) do
             task.spawn(function()
                 local part = tree:WaitForChild("WoodSection", 3)
                 if part then
-                    addESP(tree, part, v.Value, Color3.fromRGB(255, 140, 0))
+                    addButton(tree, v.Value, part, Color3.fromRGB(255, 140, 0))
                 end
             end)
         end
     end
 end
 
-----------------------------------------------------------------
--- Loop do Auto Farm
-----------------------------------------------------------------
+workspace.DescendantAdded:Connect(function(v)
+    if v:IsA("StringValue") and v.Name == "TreeClass" then
+        if v.Value == "Spooky" or v.Value == "SpookyNeon" then
+            local tree = v.Parent
+            task.spawn(function()
+                local part = tree:WaitForChild("WoodSection", 3)
+                if part then
+                    addButton(tree, v.Value, part, Color3.fromRGB(255, 140, 0))
+                end
+            end)
+        end
+    end
+end)
+
+-- Minimizador da GUI
+local collapsed = false
+toggle.MouseButton1Click:Connect(function()
+    collapsed = not collapsed
+    autoBtn.Visible = not collapsed
+    rescueBtn.Visible = not collapsed
+    hopBtn.Visible = not collapsed
+    list.Visible = not collapsed
+    statusLbl.Visible = not collapsed
+    main.Size = collapsed and UDim2.fromOffset(260, 30) or UDim2.fromOffset(260, 380)
+    toggle.Text = collapsed and "+" or "-"
+end)
+
+-- Loop do Auto Farm seguro
 task.spawn(function()
-    while task.wait(0.5) do
+    while task.wait(1) do
         if autoChop then
             local plot = getPlot()
-            local axe = getAxe()
-            local hrp = getHRP()
-
             if not plot then
-                setStatus("Você não tem um terreno (Plot)!")
-            elseif not axe then
-                setStatus("Equipe ou pegue um machado!")
-            elseif not hrp then
-                setStatus("Carregando personagem...")
+                setStatus("Carregando Slot...")
+                loadSlot()
             else
-                local targetTree = nil
-                local targetPart = nil
+                local axe = getAxe()
+                local hrp = getHRP()
 
-                for tree, data in pairs(foundTrees) do
-                    if tree.Parent and isFree(tree) then
-                        targetTree = tree
-                        targetPart = data.part
-                        break
-                    end
-                end
-
-                if targetTree and targetPart then
-                    setStatus("Cortando " .. targetTree.Name .. "...")
-                    
-                    -- Teleporta e tenta cortar
-                    hrp.CFrame = targetPart.CFrame + Vector3.new(3, 3, 0)
-                    
-                    local cutEvent = targetTree:FindFirstChild("CutEvent")
-                    if cutEvent then
-                        pcall(function()
-                            RS.Interaction.RemoteProxy:FireServer(cutEvent, {
-                                tool = axe,
-                                faceVector = Vector3.new(1, 0, 0),
-                                height = 0.3,
-                                sectionId = 1,
-                                hitPoints = 5,
-                                cooldown = 0.2,
-                                cuttingClass = "Axe"
-                            })
-                        end)
-                    end
+                if not axe then
+                    setStatus("Equipe um machado!")
                 else
-                    setStatus("Nenhuma árvore livre encontrada.")
+                    local targetTree, targetPart = nil, nil
+                    for tree, data in pairs(foundTrees) do
+                        if tree.Parent and isFree(tree) then
+                            targetTree = tree
+                            targetPart = data.part
+                            break
+                        end
+                    end
+
+                    if targetTree and targetPart then
+                        setStatus("Cortando...")
+                        hrp.CFrame = targetPart.CFrame + Vector3.new(3, 3, 0)
+                        
+                        local cutEvent = targetTree:FindFirstChild("CutEvent")
+                        if cutEvent then
+                            pcall(function()
+                                RS.Interaction.RemoteProxy:FireServer(cutEvent, {
+                                    tool = axe,
+                                    faceVector = Vector3.new(1, 0, 0),
+                                    height = 0.3,
+                                    sectionId = 1,
+                                    hitPoints = 5,
+                                    cooldown = 0.2,
+                                    cuttingClass = "Axe"
+                                })
+                            end)
+                        end
+                    else
+                        setStatus("Nenhuma árvore livre.")
+                    end
                 end
             end
         else
