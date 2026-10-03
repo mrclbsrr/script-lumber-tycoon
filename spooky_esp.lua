@@ -49,7 +49,7 @@ title.BackgroundTransparency = 1
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
 title.TextColor3 = Color3.new(1, 1, 1)
-title.Text = "Lumber Farm (Mobile Pro)"
+title.Text = "Lumber Farm (Auto Plot)"
 title.Parent = main
 
 local toggle = Instance.new("TextButton")
@@ -70,7 +70,7 @@ statusLbl.BackgroundTransparency = 1
 statusLbl.Font = Enum.Font.Gotham
 statusLbl.TextSize = 11
 statusLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
-statusLbl.Text = "Status: Pronto"
+statusLbl.Text = "Status: Iniciando..."
 statusLbl.Parent = main
 
 local function setStatus(txt)
@@ -213,7 +213,7 @@ end
 local foundTrees = {}
 
 local function addButton(tree, labelText, part, color)
-    if tree.FindFirstChild(tree, "UIBtn") then return end
+    if tree:FindFirstChild("UIBtn") then return end
     
     local btn = Instance.new("TextButton")
     btn.Name = "UIBtn"
@@ -246,7 +246,7 @@ local function addButton(tree, labelText, part, color)
     end)
 end
 
--- Escaneia árvores especiais (Spooky e SpookyNeon)
+-- Escaneia árvores especiais
 for _, v in ipairs(workspace:GetDescendants()) do
     if v:IsA("StringValue") and v.Name == "TreeClass" then
         if v.Value == "Spooky" or v.Value == "SpookyNeon" then
@@ -286,6 +286,16 @@ toggle.MouseButton1Click:Connect(function()
     statusLbl.Visible = not collapsed
     main.Size = collapsed and UDim2.fromOffset(260, 30) or UDim2.fromOffset(260, 380)
     toggle.Text = collapsed and "+" or "-"
+end)
+
+-- **Resgate Automático de Plot na Inicialização**
+task.spawn(function()
+    setStatus("Verificando terreno...")
+    if not getPlot() then
+        setStatus("Resgatando seu plot...")
+        loadSlot()
+    end
+    setStatus("Pronto")
 end)
 
 -- Loop do Auto Farm seguro
